@@ -15,6 +15,8 @@ import Themes from './pages/dashboard/Themes'
 import NotFound from './pages/NotFound'
 import DashboardLayout from './components/layouts/DashboardLayout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import PublicPage from './pages/public/PublicPage'
+import PublicPost from './pages/public/PublicPost'
 
 function App() {
   const { user, loading } = useAuth()
@@ -50,6 +52,10 @@ function App() {
         <Route path="themes" element={<Themes />} />
         <Route path="settings" element={<Settings />} />
       </Route>
+      
+      {/* Public Content Routes */}
+      <Route path="/:slug" element={<PublicPage />} />
+      <Route path="/post/:slug" element={<PublicPost />} />
       
       {/* Redirect root to dashboard if logged in, otherwise to login */}
       <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
