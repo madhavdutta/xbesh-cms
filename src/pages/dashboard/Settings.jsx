@@ -1,81 +1,77 @@
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../contexts/AuthContext'
 
 export default function Settings() {
-  const { user } = useAuth()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
-  const [settings, setSettings] = useState(null)
+  const [success, setSuccess] = useState(false)
+  const [settingsId, setSettingsId] = useState(null)
   
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm()
+  const { register, handleSubmit, formState: { errors }, reset } = useForm()
   
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        setLoading(true)
-        
-        const { data, error } = await supabase
-          .from('settings')
-          .select('*')
-          .single()
-        
-        if (error && error.code !== 'PGRST116') {
-          // PGRST116 is the error code for "no rows returned"
-          throw error
-        }
-        
-        if (data) {
-          setSettings(data)
-          
-          // Set form values
-          setValue('site_title', data.site_title)
-          setValue('site_description', data.site_description)
-          setValue('site_logo', data.site_logo)
-          setValue('site_favicon', data.site_favicon)
-          setValue('footer_text', data.footer_text)
-          setValue('posts_per_page', data.posts_per_page)
-          setValue('disqus_shortname', data.disqus_shortname)
-          setValue('google_analytics_id', data.google_analytics_id)
-        }
-      } catch (error) {
-        console.error('Error fetching settings:', error)
-        setError(error.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    
     fetchSettings()
-  }, [setValue])
+  }, [])
+  
+  const fetchSettings = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .limit(1)
+        .single()
+      
+      if (error && error.code !== 'PGRST116') {
+        throw error
+      }
+      
+      if (data) {
+        reset(data)
+        setSettingsId(data.id)
+      }
+    } catch (err) {
+      console.error('Error fetching settings:', err)
+      setError('Failed to load settings. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
   
   const onSubmit = async (data) => {
     try {
       setSaving(true)
       setError(null)
-      setSuccess(null)
+      setSuccess(false)
       
-      if (settings) {
+      let result
+      
+      if (settingsId) {
         // Update existing settings
-        const { error } = await supabase
+        result = await supabase
           .from('settings')
           .update(data)
-          .eq('id', settings.id)
-        
-        if (error) throw error
+          .eq('id', settingsId)
       } else {
         // Create new settings
-        const { error } = await supabase
+        result = await supabase
           .from('settings')
           .insert([data])
+          .select()
         
-        if (error) throw error
+        if (result.data && result.data[0]) {
+          setSettingsId(result.data[0].id)
+        }
       }
       
-      setSuccess('Settings saved successfully!')
+      if (result.error) throw result.error
+      
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       console.error('Error saving settings:', err)
       setError(err.message)
@@ -84,22 +80,13 @@ export default function Settings() {
     }
   }
   
-  // Default settings for demonstration
-  const defaultSettings = {
-    site_title: 'My CMS',
-    site_description: 'A powerful content management system',
-    site_logo: 'https://tailwindui.com/img/logos/mark.svg?color=primary&shade=600',
-    site_favicon: '/favicon.svg',
-    footer_text: '© 2023 My CMS. All rights reserved.',
-    posts_per_page: 10,
-    disqus_shortname: '',
-    google_analytics_id: '',
-  }
-  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-700">Loading settings...</p>
+        </div>
       </div>
     )
   }
@@ -108,10 +95,20 @@ export default function Settings() {
     <div>
       <div className="md:flex md:items-center md:justify-between mb-8">
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Site Settings</h1>
           <p className="mt-1 text-sm text-gray-500">
             Configure your website settings
           </p>
+        </div>
+        <div className="mt-4 flex md:mt-0 md:ml-4">
+          <button
+            type="button"
+            className="ml-3 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            onClick={handleSubmit(onSubmit)}
+            disabled={saving}
+          >
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
         </div>
       </div>
       
@@ -134,14 +131,14 @@ export default function Settings() {
             <div className="ml-3">
               <h3 className="text-sm font-medium text-green-800">Success</h3>
               <div className="mt-2 text-sm text-green-700">
-                <p>{success}</p>
+                <p>Settings saved successfully!</p>
               </div>
             </div>
           </div>
         </div>
       )}
       
-      <form className="space-y-8 divide-y divide-gray-200" onSubmit={handleSubmit(onSubmit)}>
+      <form className="space-y-8 divide-y divide-gray-200">
         <div className="space-y-8 divide-y divide-gray-200">
           <div>
             <div>
@@ -162,7 +159,6 @@ export default function Settings() {
                     name="site_title"
                     id="site_title"
                     className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    defaultValue={settings?.site_title || defaultSettings.site_title}
                     {...register('site_title', { required: 'Site title is required' })}
                   />
                   {errors.site_title && (
@@ -181,12 +177,11 @@ export default function Settings() {
                     name="site_description"
                     rows={3}
                     className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border border-gray-300 rounded-md"
-                    defaultValue={settings?.site_description || defaultSettings.site_description}
                     {...register('site_description')}
                   />
                 </div>
                 <p className="mt-2 text-sm text-gray-500">
-                  A brief description of your website. This will be used in search results and social media shares.
+                  A short description of your website. This will be used in search results and social media shares.
                 </p>
               </div>
               
@@ -200,7 +195,7 @@ export default function Settings() {
                     name="site_logo"
                     id="site_logo"
                     className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    defaultValue={settings?.site_logo || defaultSettings.site_logo}
+                    placeholder="https://example.com/logo.png"
                     {...register('site_logo')}
                   />
                 </div>
@@ -216,24 +211,8 @@ export default function Settings() {
                     name="site_favicon"
                     id="site_favicon"
                     className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    defaultValue={settings?.site_favicon || defaultSettings.site_favicon}
+                    placeholder="https://example.com/favicon.ico"
                     {...register('site_favicon')}
-                  />
-                </div>
-              </div>
-              
-              <div className="sm:col-span-6">
-                <label htmlFor="footer_text" className="block text-sm font-medium text-gray-700">
-                  Footer Text
-                </label>
-                <div className="mt-1">
-                  <input
-                    type="text"
-                    name="footer_text"
-                    id="footer_text"
-                    className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    defaultValue={settings?.footer_text || defaultSettings.footer_text}
-                    {...register('footer_text')}
                   />
                 </div>
               </div>
@@ -242,13 +221,35 @@ export default function Settings() {
           
           <div className="pt-8">
             <div>
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Content Settings</h3>
+              <h3 className="text-lg leading-6 font-medium text-gray-900">URL Structure</h3>
               <p className="mt-1 text-sm text-gray-500">
-                Configure how your content is displayed.
+                Configure how your content URLs are structured.
               </p>
             </div>
             
             <div className="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+              <div className="sm:col-span-4">
+                <label htmlFor="permalink_structure" className="block text-sm font-medium text-gray-700">
+                  Post URL Prefix
+                </label>
+                <div className="mt-1 flex rounded-md shadow-sm">
+                  <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                    {window.location.origin}
+                  </span>
+                  <input
+                    type="text"
+                    name="permalink_structure"
+                    id="permalink_structure"
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md focus:ring-primary-500 focus:border-primary-500 sm:text-sm border-gray-300"
+                    placeholder="/blog"
+                    {...register('permalink_structure')}
+                  />
+                </div>
+                <p className="mt-2 text-sm text-gray-500">
+                  The URL prefix for your blog posts. For example, "/blog" will make your posts appear as "{window.location.origin}/blog/post-slug".
+                </p>
+              </div>
+              
               <div className="sm:col-span-2">
                 <label htmlFor="posts_per_page" className="block text-sm font-medium text-gray-700">
                   Posts Per Page
@@ -261,16 +262,42 @@ export default function Settings() {
                     min="1"
                     max="50"
                     className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    defaultValue={settings?.posts_per_page || defaultSettings.posts_per_page}
-                    {...register('posts_per_page', {
-                      required: 'Posts per page is required',
-                      min: { value: 1, message: 'Minimum value is 1' },
-                      max: { value: 50, message: 'Maximum value is 50' },
+                    {...register('posts_per_page', { 
+                      valueAsNumber: true,
+                      min: { value: 1, message: 'Must be at least 1' },
+                      max: { value: 50, message: 'Cannot exceed 50' }
                     })}
                   />
                   {errors.posts_per_page && (
                     <p className="mt-2 text-sm text-red-600">{errors.posts_per_page.message}</p>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="pt-8">
+            <div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Footer Settings</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Configure your website footer.
+              </p>
+            </div>
+            
+            <div className="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+              <div className="sm:col-span-6">
+                <label htmlFor="footer_text" className="block text-sm font-medium text-gray-700">
+                  Footer Text
+                </label>
+                <div className="mt-1">
+                  <textarea
+                    id="footer_text"
+                    name="footer_text"
+                    rows={3}
+                    className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border border-gray-300 rounded-md"
+                    placeholder="© 2023 My Website. All rights reserved."
+                    {...register('footer_text')}
+                  />
                 </div>
               </div>
             </div>
@@ -286,25 +313,6 @@ export default function Settings() {
             
             <div className="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
               <div className="sm:col-span-4">
-                <label htmlFor="disqus_shortname" className="block text-sm font-medium text-gray-700">
-                  Disqus Shortname
-                </label>
-                <div className="mt-1">
-                  <input
-                    type="text"
-                    name="disqus_shortname"
-                    id="disqus_shortname"
-                    className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    defaultValue={settings?.disqus_shortname || defaultSettings.disqus_shortname}
-                    {...register('disqus_shortname')}
-                  />
-                </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  Leave empty to disable comments.
-                </p>
-              </div>
-              
-              <div className="sm:col-span-4">
                 <label htmlFor="google_analytics_id" className="block text-sm font-medium text-gray-700">
                   Google Analytics ID
                 </label>
@@ -314,13 +322,27 @@ export default function Settings() {
                     name="google_analytics_id"
                     id="google_analytics_id"
                     className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    placeholder="UA-XXXXXXXXX-X or G-XXXXXXXXXX"
-                    defaultValue={settings?.google_analytics_id || defaultSettings.google_analytics_id}
+                    placeholder="G-XXXXXXXXXX or UA-XXXXXXXX-X"
                     {...register('google_analytics_id')}
                   />
                 </div>
+              </div>
+              
+              <div className="sm:col-span-4">
+                <label htmlFor="disqus_shortname" className="block text-sm font-medium text-gray-700">
+                  Disqus Shortname
+                </label>
+                <div className="mt-1">
+                  <input
+                    type="text"
+                    name="disqus_shortname"
+                    id="disqus_shortname"
+                    className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    {...register('disqus_shortname')}
+                  />
+                </div>
                 <p className="mt-2 text-sm text-gray-500">
-                  Leave empty to disable analytics.
+                  If you want to enable comments on your posts, enter your Disqus shortname.
                 </p>
               </div>
             </div>
@@ -332,25 +354,14 @@ export default function Settings() {
             <button
               type="button"
               className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              onClick={() => {
-                // Reset form to initial values
-                if (settings) {
-                  setValue('site_title', settings.site_title)
-                  setValue('site_description', settings.site_description)
-                  setValue('site_logo', settings.site_logo)
-                  setValue('site_favicon', settings.site_favicon)
-                  setValue('footer_text', settings.footer_text)
-                  setValue('posts_per_page', settings.posts_per_page)
-                  setValue('disqus_shortname', settings.disqus_shortname)
-                  setValue('google_analytics_id', settings.google_analytics_id)
-                }
-              }}
+              onClick={() => reset()}
             >
               Reset
             </button>
             <button
-              type="submit"
+              type="button"
               className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              onClick={handleSubmit(onSubmit)}
               disabled={saving}
             >
               {saving ? 'Saving...' : 'Save Settings'}

@@ -2,70 +2,97 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import slugify from 'slugify'
+import PreviewModal from '../../components/PreviewModal'
 
 export default function EditPost() {
   const { id } = useParams()
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const [post, setPost] = useState(null)
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [slug, setSlug] = useState('')
   const [autoSlug, setAutoSlug] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [permalinkBase, setPermalinkBase] = useState('')
   
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm()
+  const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm()
   
   const title = watch('title')
   
   useEffect(() => {
-    const fetchPost = async () => {
-      try {
-        setLoading(true)
-        
-        const { data, error } = await supabase
-          .from('posts')
-          .select('*')
-          .eq('id', id)
-          .single()
-        
-        if (error) throw error
-        
-        if (data) {
-          setPost(data)
-          setContent(data.content || '')
-          setSlug(data.slug || '')
-          
-          // Set form values
-          setValue('title', data.title)
-          setValue('excerpt', data.excerpt)
-          setValue('status', data.status)
-          setValue('featured_image', data.featured_image)
-          setValue('meta_title', data.meta_title)
-          setValue('meta_description', data.meta_description)
-        }
-      } catch (error) {
-        console.error('Error fetching post:', error)
-        setError(error.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    
-    if (id) {
-      fetchPost()
-    }
-  }, [id, setValue])
+    fetchPost()
+    fetchSiteSettings()
+  }, [id])
   
   useEffect(() => {
     if (autoSlug && title) {
       const generatedSlug = slugify(title, { lower: true, strict: true })
       setSlug(generatedSlug)
+      setValue('slug', generatedSlug)
     }
-  }, [title, autoSlug])
+  }, [title, autoSlug, setValue])
+  
+  const fetchSiteSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .limit(1)
+        .single()
+      
+      if (error) throw error
+      
+      // Set permalink base from settings or use default
+      if (data) {
+        setPermalinkBase(data.permalink_structure || '/blog')
+      } else {
+        setPermalinkBase('/blog')
+      }
+    } catch (error) {
+      console.error('Error fetching site settings:', error)
+      setPermalinkBase('/blog') // Fallback to default
+    }
+  }
+  
+  const fetchPost = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('id', id)
+        .single()
+      
+      if (error) throw error
+      
+      if (data) {
+        reset({
+          title: data.title,
+          slug: data.slug,
+          excerpt: data.excerpt,
+          status: data.status,
+          featured_image: data.featured_image,
+          meta_title: data.meta_title,
+          meta_description: data.meta_description,
+        })
+        setContent(data.content || '')
+        setSlug(data.slug)
+      }
+    } catch (err) {
+      console.error('Error fetching post:', err)
+      setError('Failed to load post. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
   
   const handleSlugChange = (e) => {
     setAutoSlug(false)
@@ -80,7 +107,7 @@ export default function EditPost() {
       const postData = {
         ...data,
         content,
-        slug,
+        slug: slug || slugify(data.title, { lower: true, strict: true }),
         updated_at: new Date(),
       }
       
@@ -115,28 +142,9 @@ export default function EditPost() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
-    )
-  }
-  
-  if (!post && !loading) {
-    return (
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Post not found</h3>
-          <div className="mt-2 max-w-xl text-sm text-gray-500">
-            <p>The post you're looking for doesn't exist or you don't have permission to view it.</p>
-          </div>
-          <div className="mt-5">
-            <button
-              type="button"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              onClick={() => navigate('/dashboard/posts')}
-            >
-              Go back to posts
-            </button>
-          </div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-700">Loading post...</p>
         </div>
       </div>
     )
@@ -148,17 +156,21 @@ export default function EditPost() {
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-gray-900">Edit Post</h1>
         </div>
-        <div className="mt-4 flex md:mt-0 md:ml-4">
+        <div className="mt-4 flex md:mt-0 md:ml-4 space-x-3">
           <button
             type="button"
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            onClick={() => navigate('/dashboard/posts')}
+            onClick={() => setShowPreview(true)}
           >
-            Cancel
+            <svg className="-ml-1 mr-2 h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Preview
           </button>
           <button
             type="button"
-            className="ml-3 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             onClick={handleSubmit(onSubmit)}
             disabled={saving}
           >
@@ -203,17 +215,20 @@ export default function EditPost() {
               </div>
               
               <div className="sm:col-span-6">
-                <label htmlFor="slug" className="block text-sm font-medium text-gray-700">
-                  Slug
+                <label htmlFor="permalink" className="block text-sm font-medium text-gray-700">
+                  Permalink
                 </label>
-                <div className="mt-1">
+                <div className="mt-1 flex rounded-md shadow-sm">
+                  <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                    {window.location.origin}{permalinkBase}/
+                  </span>
                   <input
                     type="text"
                     name="slug"
                     id="slug"
                     value={slug}
                     onChange={handleSlugChange}
-                    className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md focus:ring-primary-500 focus:border-primary-500 sm:text-sm border-gray-300"
                   />
                 </div>
                 <div className="mt-1 flex items-center">
@@ -278,6 +293,19 @@ export default function EditPost() {
                     {...register('featured_image')}
                   />
                 </div>
+                {watch('featured_image') && (
+                  <div className="mt-2">
+                    <img 
+                      src={watch('featured_image')} 
+                      alt="Featured preview" 
+                      className="h-32 w-auto object-cover rounded-md"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://via.placeholder.com/640x360?text=Invalid+Image+URL';
+                      }}
+                    />
+                  </div>
+                )}
               </div>
               
               <div className="sm:col-span-3">
@@ -366,6 +394,16 @@ export default function EditPost() {
           </div>
         </div>
       </form>
+      
+      {/* Preview Modal */}
+      <PreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        title={watch('title') || 'Untitled Post'}
+        content={content}
+        type="post"
+        featuredImage={watch('featured_image')}
+      />
     </div>
   )
 }
