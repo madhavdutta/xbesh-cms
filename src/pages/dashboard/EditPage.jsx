@@ -21,12 +21,17 @@ export default function EditPage() {
   const [showPreview, setShowPreview] = useState(false)
   const editorRef = useRef(null)
   const [siteUrl, setSiteUrl] = useState('')
+  const [theme, setTheme] = useState('light')
 
   useEffect(() => {
     fetchPage()
     // Get the base URL for preview links
     const url = window.location.origin
     setSiteUrl(url)
+    
+    // Detect theme
+    const isDark = document.documentElement.classList.contains('dark')
+    setTheme(isDark ? 'dark' : 'light')
   }, [id])
 
   const fetchPage = async () => {
