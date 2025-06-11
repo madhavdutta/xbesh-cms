@@ -12,6 +12,7 @@ import {
   PaintBrushIcon,
   ArrowRightOnRectangleIcon,
   UserIcon,
+  PuzzlePieceIcon
 } from '@heroicons/react/24/outline'
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
 import { useAuth } from '../../contexts/AuthContext'
@@ -64,6 +65,7 @@ export default function DashboardLayout() {
     { name: 'Posts', href: '/dashboard/posts', icon: NewspaperIcon },
     { name: 'Pages', href: '/dashboard/pages', icon: DocumentTextIcon },
     { name: 'Media', href: '/dashboard/media', icon: PhotoIcon },
+    { name: 'Plugins', href: '/dashboard/plugins', icon: PuzzlePieceIcon },
     { name: 'Themes', href: '/dashboard/themes', icon: PaintBrushIcon },
     { name: 'Settings', href: '/dashboard/settings', icon: Cog6ToothIcon },
   ]
@@ -246,6 +248,7 @@ export default function DashboardLayout() {
                   {location.pathname.includes('/dashboard/pages/new') && 'New Page'}
                   {location.pathname.includes('/dashboard/pages/') && !location.pathname.includes('/new') && 'Edit Page'}
                   {location.pathname === '/dashboard/media' && 'Media Library'}
+                  {location.pathname === '/dashboard/plugins' && 'Plugins'}
                   {location.pathname === '/dashboard/themes' && 'Themes'}
                   {location.pathname === '/dashboard/settings' && 'Settings'}
                 </h1>

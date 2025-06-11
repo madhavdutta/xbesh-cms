@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { usePlugins } from '../../contexts/PluginContext'
 import { 
   DocumentTextIcon, 
   NewspaperIcon, 
   PhotoIcon, 
-  ArrowUpIcon, 
-  ArrowDownIcon,
   PencilSquareIcon,
   EyeIcon,
   ClockIcon,
   PaintBrushIcon,
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  PuzzlePieceIcon
 } from '@heroicons/react/24/outline'
 
 export default function Dashboard() {
@@ -19,15 +19,20 @@ export default function Dashboard() {
     posts: 0,
     pages: 0,
     media: 0,
+    plugins: 0,
     recentPosts: [],
     recentPages: []
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [activityFeed, setActivityFeed] = useState([])
+  const { plugins, runAction } = usePlugins()
 
   useEffect(() => {
     fetchDashboardData()
+    
+    // Run dashboard init action for plugins
+    runAction('dashboard_init')
   }, [])
 
   const fetchDashboardData = async () => {
@@ -56,6 +61,15 @@ export default function Dashboard() {
       
       if (mediaError && mediaError.code !== 'PGRST116') {
         console.error('Media table might not exist:', mediaError)
+      }
+      
+      // Fetch plugin count
+      const { count: pluginsCount, error: pluginsError } = await supabase
+        .from('plugins')
+        .select('*', { count: 'exact', head: true })
+      
+      if (pluginsError && pluginsError.code !== 'PGRST116') {
+        console.error('Plugins table might not exist:', pluginsError)
       }
       
       // Fetch recent posts
@@ -96,6 +110,7 @@ export default function Dashboard() {
         posts: postsCount || 0,
         pages: pagesCount || 0,
         media: mediaCount || 0,
+        plugins: pluginsCount || 0,
         recentPosts: recentPosts || [],
         recentPages: recentPages || []
       })
@@ -163,7 +178,7 @@ export default function Dashboard() {
       )}
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <div className="card">
           <div className="p-5">
             <div className="flex items-center">
@@ -234,6 +249,31 @@ export default function Dashboard() {
             <div className="text-sm">
               <Link to="/dashboard/media" className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
                 View media library
+              </Link>
+            </div>
+          </div>
+        </div>
+        
+        <div className="card">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <PuzzlePieceIcon className="h-6 w-6 text-primary-600 dark:text-primary-400" aria-hidden="true" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Plugins</dt>
+                  <dd>
+                    <div className="text-lg font-medium text-gray-900 dark:text-white">{stats.plugins}</div>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-900 px-5 py-3">
+            <div className="text-sm">
+              <Link to="/dashboard/plugins" className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+                Manage plugins
               </Link>
             </div>
           </div>
@@ -342,21 +382,26 @@ export default function Dashboard() {
               </div>
               
               <div>
-                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Appearance</h4>
+                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Extend</h4>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Link to="/dashboard/plugins" className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-700 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900">
+                    <PuzzlePieceIcon className="mr-2 -ml-1 h-5 w-5 text-gray-400 dark:text-gray-500" />
+                    Manage Plugins
+                  </Link>
                   <Link to="/dashboard/themes" className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-700 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900">
                     <PaintBrushIcon className="mr-2 -ml-1 h-5 w-5 text-gray-400 dark:text-gray-500" />
                     Customize Theme
-                  </Link>
-                  <Link to="/dashboard/settings" className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-700 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900">
-                    <Cog6ToothIcon className="mr-2 -ml-1 h-5 w-5 text-gray-400 dark:text-gray-500" />
-                    Site Settings
                   </Link>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
+      
+      {/* Plugin Dashboard Widgets Area - This will be populated by plugins */}
+      <div id="plugin-dashboard-widgets" className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Plugins will inject content here */}
       </div>
     </div>
   )

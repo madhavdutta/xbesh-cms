@@ -12,6 +12,7 @@ import EditPage from './pages/dashboard/EditPage'
 import Settings from './pages/dashboard/Settings'
 import Media from './pages/dashboard/Media'
 import Themes from './pages/dashboard/Themes'
+import Plugins from './pages/dashboard/Plugins'
 import NotFound from './pages/NotFound'
 import DashboardLayout from './components/layouts/DashboardLayout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -49,6 +50,7 @@ function App() {
         <Route path="pages/new" element={<CreatePage />} />
         <Route path="pages/:id" element={<EditPage />} />
         <Route path="media" element={<Media />} />
+        <Route path="plugins" element={<Plugins />} />
         <Route path="themes" element={<Themes />} />
         <Route path="settings" element={<Settings />} />
       </Route>
